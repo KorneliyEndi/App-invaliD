@@ -1,25 +1,70 @@
 import telebot
-import webbrowser
+import webbrowser        #вроді для відкриття сайту
 from telebot import types
-import sqlite3
-import requests
+import sqlite3    # база даних
+import requests    #погода
 import json
+from currency_converter import CurrencyConverter  #конвертер валют
 
-bot = telebot.TeleBot('6248161837:AAEC7LBPRd_tBcVHds5BstnmR4fh6cwRjHo')
-name = ''
-API = '29e1feb28c6343163dd0223b2084877d'
+bot = telebot.TeleBot('6248161837:AAEC7LBPRd_tBcVHds5BstnmR4fh6cwRjHo')    #токен тг
+
+currency = CurrencyConverter()    #об'єкт на основі класу для конвертера валют
+name = ''         #глобальна змінна для бази даних
+amount = 0
+API = '29e1feb28c6343163dd0223b2084877d'    #для погоди, зв'язок з сайтом
+
+@bot.message_handler(['convert'])       #конвертор валют
+def convert(message):
+    bot.send_message(message.chat.id, 'Привіт, введіть суму')
+    bot.register_next_step_handler(message, summa)
+
+def summa(message):
+    global amount
+    try:
+        amount = int(message.text.strip())
+    except ValueError:
+        bot.send_message(message.chat.id, 'Невірний формат, введіть число')
+        bot.register_next_step_handler(message, summa)
+        return
+
+    if amount > 0:
+        markup_convert = types.InlineKeyboardMarkup(row_width=2)
+        btn1 = types.InlineKeyboardButton('USD/EUR', callback_data='usd/eur')
+        btn2 = types.InlineKeyboardButton('EUR/USD', callback_data='eur/usd')
+        btn3 = types.InlineKeyboardButton('UAN/GBP', callback_data='usd/gbp')
+        btn4 = types.InlineKeyboardButton('Інше значення', callback_data='else')
+        markup_convert.add(btn1, btn2, btn3, btn4)
+        bot.send_message(message.chat.id, 'Введіть пару валют', reply_markup=markup_convert)
+    else:
+        bot.send_message(message.chat.id, 'Невірне число, введыть ще раз')
+        bot.register_next_step_handler(message, summa)
+
+
+@bot.callback_query_handler(func=lambda call: True)
+def callback_converter(call):
+    if call.data != 'else':
+        values = call.data.upper().split('/')
+        res = currency.convert(amount, values[0], values[1])          #звернення до глобальної змінної і об'єкту на основі класу для конвертера валют
+        bot.send_message(call.message.chat.id, f'Получається: {round(res, 2)}. Можете ввести суму ще раз')
+        bot.register_next_step_handler(call.message, summa)
+    else:
+        bot.send_message(call.message.chat.id, 'Введіть пару значень через слеш')
+        bot.register_next_step_handler(call.message, my_currency)
+
+def my_currency(message):
+    try:
+        values = message.text.upper().split('/')
+        res = currency.convert(amount, values[0], values[1])  # звернення до глобальної змінної і об'єкту на основі класу для конвертера валют
+        bot.send_message(message.chat.id, f'Получається: {round(res, 2)}. Можете ввести суму ще раз')
+        bot.register_next_step_handler(message, summa)
+    except Exception:
+        bot.send_message(message.chat.id, 'Щось не так, введіть значення заново')
+        bot.register_next_step_handler(message, my_currency)
 
 
 
 
-
-
-
-
-
-
-
-@bot.message_handler(commands=['sing'])
+@bot.message_handler(commands=['sing'])     #реєстрація
 def sing(message):
     conn = sqlite3.connect('baza_danih.sql')
     cur = conn.cursor()
@@ -56,7 +101,7 @@ def user_pass(message):
 
 
 
-@bot.callback_query_handler(func=lambda call: True)
+@bot.callback_query_handler(func=lambda call: True)     #вивід зареєстрованих користувачів
 def callbak(call):
     conn = sqlite3.connect('baza_danih.sql')
     cur = conn.cursor()
@@ -75,15 +120,15 @@ def callbak(call):
 @bot.message_handler(commands=['buttons'])
 def start(message):
     markup = types.ReplyKeyboardMarkup()
-    btn_1 = types.KeyboardButton('Кнопка для дій')
+    btn_1 = types.KeyboardButton('Чернівці')
     markup.row(btn_1)
-    btn_2 = types.KeyboardButton('Видалити фото')
-    btn_3 = types.KeyboardButton('Змінити текст')
+    btn_2 = types.KeyboardButton('Шешори')
+    btn_3 = types.KeyboardButton('Київ')
     markup.row(btn_2, btn_3)
     file = open('37897_elder_scrolls.jpg', 'rb')
     bot.send_photo(message.chat.id, file, reply_markup=markup)
     #bot.send_message(message.chat.id, 'Hi', reply_markup=markup)
-    bot.register_next_step_handler(message, on_click)
+    #bot.register_next_step_handler(message, on_click)
 
 #def on_click(message):
  #   if message.text == 'Кнопка для дій':
